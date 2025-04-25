@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Interview Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        /* Basic styling for the profile dropdown */
+        .profile-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .profile-button {
+            background-color: #4CAF50; /* Example color */
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            display: flex; /* Use flexbox for alignment */
+            align-items: center; /* Vertically center items */
+            gap: 8px; /* Add some gap between image and text */
+        }
+
+        .profile-options {
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 150px; /* Increased width */
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 5px;
+            right: 0; /* Align to the right */
+        }
+
+        .profile-options a {
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .profile-options a:hover {
+            background-color: #ddd;
+        }
+
+        .profile-options a:last-child {
+            border-bottom: none;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .profile-image {
+            width: 30px; /* Adjust size as needed */
+            height: 30px;
+            border-radius: 50%; /* Make it a circle */
+            background-color: #ddd; /* Placeholder background */
+            /* You can use an actual image URL here if you have one: */
+            /* background-image: url('path/to/your/profile-pic.png'); */
+            background-size: cover; /* Ensure image covers the whole area */
+            background-position: center; /* Center the image */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-6">
+<div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6 h-[90vh] flex flex-col">
+    <div class="flex justify-between items-center mb-4">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 text-white p-2 rounded-full">
+                <i class="fas fa-robot"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-blue-600">Interview Assistant</h1>
+        </div>
+        <div class="profile-dropdown">
+            <button class="profile-button">
+                <div class="profile-image"></div>
+                Profile
+            </button>
+            <div id="profileOptions" class="profile-options hidden">
+                <a href="#" id="display-id"></a>
+                <a href="#" id="chat-history-link">Chat History</a>
+                <a href="#" id="signout">Sign Out</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="chat" class="flex-1 overflow-y-auto space-y-2 pr-2 flex flex-col"></div>
+
+    <div id="export-button-container" class="mt-2 justify-end hidden">  <button id="export-pdf" class="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700">
+            Export Chat to PDF
+        </button>
+    </div>
+
+    <div class="mt-4 flex gap-2">
+        <input id="user-input" type="text" placeholder="Type here..."
+               class="flex-1 px-4 py-2 border rounded-xl shadow-sm focus:outline-none"/>
+        <button id="send" class="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700">
+            <i class="fas fa-arrow-up"></i>  
+        </button>
+    </div>
+</div>
+
+<script>
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("user-input");
+    const send = document.getElementById("send");
+    const exportButtonContainer = document.getElementById("export-button-container");
+    const exportPdfButton = document.getElementById("export-pdf");
+    const profileDropdown = document.querySelector('.profile-dropdown');
+    const profileOptions = document.getElementById('profileOptions');
+    const signoutButton = document.getElementById('signout');
+    const displayIdButton = document.getElementById('display-id');
+    const chatHistoryLink = document.getElementById('chat-history-link');
+
+
+    let chatHistory = [];
+    let userId = "user123"; // Replace with actual user ID from your authentication system
+    let hasUserSentMessage = false; //flag to track user message
+
+    function displayMessage(message, sender = "bot") {
+        const wrapper = document.createElement("div");
+        wrapper.className = `flex ${sender === "user" ? "justify-end" : "justify-start"}`;
+        const div = document.createElement("div");
+        div.className = `p-3 rounded-xl max-w-xl whitespace-pre-wrap text-sm break-words ${
+            sender === "user" ? "bg-gray-200 text-gray-800" : "bg-blue-100 text-gray-800"
+        }`;
+        const arrow = '';
+        div.innerHTML = message + arrow;
+        wrapper.appendChild(div);
+        chat.appendChild(wrapper);
+        chat.scrollTop = chat.scrollHeight;
+
+        chatHistory.push({ sender, message: message + arrow });
+    }
+
+    function simulateBotReply(response) {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                displayMessage(response, "bot");
+            }, Math.random() * 1000 + 2000);
+        });
+    }
+
+    async function sendMessage() {
+        const msg = input.value.trim();
+        if (!msg) return;
+        displayMessage(msg, "user");
+        input.value = "";
+
+        if (!hasUserSentMessage) {
+            hasUserSentMessage = true;
+            exportButtonContainer.classList.remove('hidden');
+        }
+
+        if (msg.toLowerCase().includes("i want interview related question")) {
+            const interviewQuestions = `Absolutely! Here’s a well-rounded list of interview-related questions categorized by topics, which can help you prepare for software development or programming interviews. These cover fundamental concepts, coding, design, and behavioral aspects.
+
+1. Core Programming & Java Specific
+Java Basics
+What are the main features of Java?
+Explain the difference between JDK, JRE, and JVM.
+What is the difference between == and .equals() in Java?
+How does Java achieve platform independence?
+What are access modifiers in Java?
+What are wrapper classes? Why do we need them?
+OOP Concepts
+Explain the four pillars of Object-Oriented Programming.
+What is method overloading vs. method overriding?
+What is polymorphism? Give examples.
+What is the difference between abstract class and interface?
+What is encapsulation and how do you implement it in Java?
+Explain the final keyword and its usage.
+Exception Handling
+What is the difference between checked and unchecked exceptions?
+How does try-catch-finally work?
+What is the purpose of throws and throw keywords?
+What happens if an exception is not caught?
+Collections & Generics
+What are the different types of collections in Java?
+Explain the difference between ArrayList and LinkedList.
+What is the difference between HashMap and Hashtable?
+What is a Set? How does it handle duplicates?
+Explain the concept of Generics.
+Multithreading & Concurrency
+What is a thread in Java? Difference between process and thread?
+How do you create a thread?
+What is synchronization? How does it help?
+Explain thread lifecycle.
+What are locks and deadlocks?
+
+2. Data Structures & Algorithms
+Basic Concepts
+What is an array? How is it different from a linked list?
+Explain stack and queue and their applications.
+What is a binary tree? Describe traversal methods.
+What is a hash table? How does hashing work?
+Problem Solving & Algorithms
+How would you reverse a linked list?
+How to detect a loop in a linked list?
+Explain sorting algorithms (Bubble sort, Merge sort, Quick sort).
+How to find the nth Fibonacci number efficiently?
+Describe binary search and its time complexity.
+How to find duplicates in an array?
+
+3. System Design & Architecture
+What is RESTful API and how does it work?
+Explain the client-server architecture.
+What is load balancing?
+What is database normalization?
+Difference between SQL and NoSQL databases.
+What is caching and why is it important?
+Describe microservices architecture.
+
+4. Behavioral Questions
+Tell me about yourself.
+Describe a challenging problem you faced and how you solved it.
+How do you handle conflicts in a team?
+Give an example of a project you are proud of.
+How do you keep yourself updated with new technology?
+Describe a time when you had to learn something new quickly.
+
+Bonus: Sample Coding Interview Questions
+Write a program to check if a string is a palindrome.
+Write code to find the factorial of a number (iteratively and recursively).
+Find the largest and smallest number in an unsorted array.
+Merge two sorted arrays.
+Implement a function to remove duplicates from an array.
+Write a program to check if two strings are anagrams.
+Implement breadth-first search (BFS) on a graph.
+
+If you want, I can provide:
+
+Sample answers/explanations
+Code examples for any programming questions
+Mock interview practice questions
+Specific topics like Java advanced features, web development, or databases
+
+Just let me know!`;
+            await simulateBotReply(interviewQuestions);
+        } else if (msg.toLowerCase().includes("technical questions for interview")) {
+            const technicalQuestions = `Certainly! Here’s a curated list of technical interview questions commonly asked across software engineering interviews, categorized by topic. These questions are designed to assess your programming skills, problem-solving ability, system design knowledge, and understanding of core computer science concepts.
+
+Programming & Fundamentals
+1. Programming Concepts & Language-Specific
+Explain the difference between procedural and object-oriented programming.
+What are pointers and references? How do they differ?
+What is recursion? Can you give an example?
+What is a memory leak? How can you avoid it?
+Explain the difference between stack and heap memory.
+What are immutable objects? Give examples.
+How does garbage collection work in Java?
+2. Data Structures
+Implement a stack using arrays or linked list.
+Explain how a queue works. What is a circular queue?
+What is a binary search tree? How is it different from a binary tree?
+Explain how a hash map works internally.
+What is the difference between ArrayList and LinkedList? When would you use each?
+Design a data structure that supports insert, delete, search and getRandom in constant time.
+3. Algorithms
+Write a function to reverse a linked list.
+How would you find the middle of a linked list?
+Explain different sorting algorithms and their time complexities.
+What is dynamic programming? Explain with an example.
+Write an algorithm to detect a cycle in a graph.
+Explain the difference between BFS and DFS.
+4. Object-Oriented Design
+How would you design a parking lot system?
+Explain SOLID principles.
+Design a library management system.
+What is the difference between abstract class and interface in Java?
+How does polymorphism work? Give real-world examples.
+
+System Design & Architecture
+5. System Design Questions
+Design a URL shortener (like bit.ly).
+How would you design a social media feed?
+Explain how load balancers work.
+Design a scalable web crawler.
+Design a chat application.
+How would you design an online bookstore?
+6. Database & Storage
+What is normalization? Explain different normal forms.
+What is an index? How does it improve database performance?
+Explain ACID properties in databases.
+Difference between SQL and NoSQL databases.
+How to design a schema for a given application?
+
+Concurrency & Multithreading
+7. Concurrency Questions
+What are threads and processes? How are they different?
+Explain thread synchronization and deadlocks.
+What is a race condition? How can it be prevented?
+How does Java's volatile keyword work?
+What are thread pools and why are they important?
+
+Coding Challenges (Typical)
+8. Sample Coding Problems
+Find the first non-repeated character in a string.
+Reverse words in a sentence without using library functions.
+Given an array of integers, find all pairs that sum up to a specific value.
+Implement LRU cache.
+Merge intervals problem.
+Validate a binary search tree.
+Implement Trie (prefix tree) data structure.
+
+Useful Tips:
+Be prepared to write and explain code on a whiteboard or shared editor.
+Practice explaining your thought process clearly and concisely.
+Understand time and space complexity analysis.
+Practice common data structure and algorithm problems on platforms like LeetCode, HackerRank, or GeeksforGeeks.
+
+If you want, I can provide:
+Sample answers and code snippets for any questions.
+Detailed explanations of concepts.
+Mock interview sessions with feedback.
+Specific questions tailored for Java, Python, or other technologies.
+
+Let me know what you want to focus on!`;
+            await simulateBotReply(technicalQuestions);
+        } else if (msg.toLowerCase().includes("how to improve our skills for interview")) {
+            const improvementTips = `Improving your skills for technical interviews is a structured process that combines knowledge building, practice, and soft skills development. Here’s a comprehensive guide to help you prepare effectively and boost your confidence:
+
+How to Improve Your Skills for Interviews
+1. Strengthen Your Fundamentals
+Master Core Concepts
+Focus on data structures (arrays, linked lists, trees, graphs, stacks, queues, hash tables) and algorithms (sorting, searching, recursion, dynamic programming).
+Understand OOP Principles
+Learn about encapsulation, inheritance, polymorphism, abstraction, and design patterns.
+Know Your Language Well
+Be comfortable coding in at least one programming language (Java, Python, C++, etc.) and understand its nuances.
+
+2. Practice Problem-Solving Regularly
+Use Online Platforms
+Solve problems daily on websites like LeetCode, HackerRank, Codeforces, GeeksforGeeks, and CodeSignal.
+Start Simple, Then Progress
+Begin with easy problems, then gradually tackle medium and hard levels.
+Time Yourself
+Practice coding under time constraints to simulate interview pressure.
+Focus on Explanation
+Practice explaining your thought process clearly as you solve problems.
+
+3. Improve Coding and Debugging Skills
+Write Clean Code
+Use meaningful variable names, proper indentation, and modular functions.
+Master Common Algorithms
+Understand sorting, searching, graph traversal, recursion, backtracking, and dynamic programming in depth.
+Debug Systematically
+Learn techniques to identify bugs quickly and fix them efficiently.
+
+4. Learn System Design Basics
+Understand Scalable Systems
+Study load balancing, caching, databases (SQL & NoSQL), microservices, and API design.
+Read Case Studies
+Analyze how big systems like Facebook, Netflix, and Google are designed.
+Practice Designing Systems
+Sketch solutions to real-world problems (e.g., design Twitter, a chat app, URL shortener).
+
+5. Build Projects
+Apply Concepts in Real Projects
+Build small projects or contribute to open source to gain hands-on experience.
+Showcase Your Work
+Maintain a GitHub profile, write blogs, or create a portfolio website.
+
+6. Mock Interviews and Peer Coding
+Participate in Mock Interviews
+Use platforms like Pramp, Interviewing.io, or seek peers/mentors for mock interviews.
+Practice Behavioral Questions
+Work on communication, attitude, and teamwork scenarios. Prepare stories using the STAR method (Situation, Task, Action, Result).
+
+7. Improve Communication Skills
+Explain Your Code
+Work on clearly articulating your approach and reasoning.
+Listen and Clarify
+Ask clarifying questions if the problem statement is unclear.
+Be Concise and Structured
+Organize your thoughts logically when responding.
+
+8. Study Interview Experiences
+Read interview experiences shared by candidates on sites like Glassdoor, LeetCode Discuss, or Blind to understand common questions and interview patterns of specific companies.
+
+9. Rest and Stay Positive
+Take Breaks
+Avoid burnout by balancing study with rest, exercise, and hobbies.
+Stay Confident
+Confidence comes with preparation. Believe in your progress.
+
+Recommended Resources
+Books:
+Cracking the Coding Interview by Gayle Laakmann McDowell
+Introduction to Algorithms by Cormen et al.
+Designing Data-Intensive Applications by Martin Kleppmann
+Online Courses:
+Algorithms Specialization on Coursera
+System Design courses on educative.io
+Websites:
+LeetCode (leetcode.com)
+HackerRank (hackerrank.com)
+GeeksforGeeks (geeksforgeeks.org)
+
+By following this structured approach, practicing consistently, and building a solid understanding of fundamentals, you will greatly improve your interview skills and increase your chances of success.
+
+If you want, I can help you with a tailored study plan, coding challenges, or mock interview preparation! Just ask.`;
+            await simulateBotReply(improvementTips);
+        } else {
+            await simulateBotReply("Hello! I'm your interview assistant. How can I help you?");
+        }
+    }
+
+    exportPdfButton.addEventListener("click", async () => {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF();
+        let y = 10;
+        pdf.setFontSize(12);
+
+        pdf.text("Interview Assistant - Chat History", 10, y);
+        y += 10;
+        pdf.setFontSize(10);
+
+        for (const chatItem of chatHistory) {
+            const senderText = chatItem.sender === "user" ? "You:" : "Bot:";
+            const messageLines = pdf.splitTextToSize(`${senderText} ${chatItem.message}`, 180);
+
+            messageLines.forEach(line => {
+                pdf.text(line, 10, y);
+                y += 5;
+                if (y > 280) {
+                    pdf.addPage();
+                    y = 10;
+                }
+            });
+            y += 5; // Add some space between messages
+        }
+
+        pdf.save("chat-history.pdf");
+    });
+
+    // Profile dropdown functionality
+    profileDropdown.addEventListener('click', () => {
+        profileOptions.classList.toggle('hidden');
+    });
+
+    // Set the user ID
+    displayIdButton.textContent = userId;
+
+    chatHistoryLink.addEventListener('click', () => {
+        // Display the chat history
+        let historyContent = "<h2>Chat History:</h2><br>";
+        chatHistory.forEach(item => {
+            historyContent += `<p><strong>${item.sender}:</strong> ${item.message}</p>`;
+        });
+        historyContent += '<button id="back-to-bot" class="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 mt-4">Back to Bot</button>';
+        chat.innerHTML = historyContent;
+
+        profileOptions.classList.toggle('hidden');
+
+        const backToBotButton = document.getElementById('back-to-bot');
+        backToBotButton.addEventListener('click', () => {
+            chat.innerHTML = '';
+            chatHistory = [];
+            simulateBotReply("Hello! I'm your interview assistant. How can I help you?");
+        });
+    });
+
+    signoutButton.addEventListener('click', () => {
+        alert('Sign Out functionality would be implemented here.');
+        window.location.href = 'login.html';
+    });
+
+    send.addEventListener("click", sendMessage);
+    input.addEventListener("keypress", e => e.key === "Enter" && sendMessage());
+
+    simulateBotReply("Hello! I'm your interview assistant. How can I help you?");
+</script>
+</body>
+</html>
